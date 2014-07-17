@@ -42,7 +42,10 @@
 var aserv=Components.classes["@mozilla.org/atom-service;1"]
                     .getService(Components.interfaces.nsIAtomService);
 var gIOService = Components.classes["@mozilla.org/network/io-service;1"]
-                           .getService(Components.interfaces.nsIIOService);
+                      .getService(Components.interfaces.nsIIOService);
+var gCacheService = Components.classes["@mozilla.org/network/cache-service;1"]
+                      .getService(Components.interfaces.nsICacheService);
+
 var viewdepBundle;
 var gFrameTreeNumber = 0;
 var gFinished = false;
@@ -1215,22 +1218,26 @@ function unCacheRefresh(row)
     //... .Invalidate();
 }
 
-function GetCache(url, callback)
-{
+function GetCache(url, callback) {
   const ACCESS_READ = Components.interfaces.nsICache.ACCESS_READ;
   try {
-    httpCacheSession.asyncOpenCacheEntry(url, ACCESS_READ,
-                                         {onCacheEntryAvailable: function(entry, access, status) {
-      if (entry)
-        callback(entry);
-      else {
-        ftpCacheSession.asyncOpenCacheEntry(url, ACCESS_READ,
-                                            {onCacheEntryAvailable: function(entry, access, status) {
+    var httpCacheSession = gCacheService.createSession("HTTP", Components.interfaces.nsICache.STORE_ANYWHERE, true);
+    httpCacheSession.asyncOpenCacheEntry(url, ACCESS_READ, {
+      onCacheEntryAvailable: function(entry, access, status) {
+        if (entry)
           callback(entry);
-        }}, true);
+        else {
+          var ftpCacheSession = gCacheService.createSession("FTP", Components.interfaces.nsICache.STORE_ANYWHERE, true);
+          ftpCacheSession.asyncOpenCacheEntry(url, ACCESS_READ, {
+            onCacheEntryAvailable: function(entry, access, status) {
+              callback(entry);
+            }
+          }, true);
+        }
       }
-    }}, true);
-  } catch(ex) {
+    }, true);
+  } catch (ex) {
+    // console.log(ex);
     callback(null);
   }
 }

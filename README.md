@@ -4,4 +4,11 @@ The changes made are merely for the extension to work on Firefox 22 and later ve
 
 <https://addons.mozilla.org/addon/view-dependencies/>
 
-Meanwhile, feel free to install this version straight from this repo by using [GitHub Extension Installer](https://addons.mozilla.org/addon/GitHub-Extension-Installer/)
+Newer
+-----
+
+Fixing unknown size on firefox 27+ from Reviews <https://addons.mozilla.org/en-US/firefox/addon/view-dependencies/?src=search>
+
+Fixing unknown size can't work on firefox 33.
+
+![效果图.png](效果图.png)
