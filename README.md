@@ -7,8 +7,6 @@ The changes made are merely for the extension to work on Firefox 22 and later ve
 Newer
 -----
 
-Fixing unknown size on firefox 27+ from Reviews <https://addons.mozilla.org/en-US/firefox/addon/view-dependencies/?src=search>
+Fixing unknown size on firefox 27+ not firefox 33, from Reviews <https://addons.mozilla.org/en-US/firefox/addon/view-dependencies/?src=search>
 
-Fixing unknown size can't work on firefox 33.
-
-![效果图.png](效果图.png)
+![view.png](view.png)
