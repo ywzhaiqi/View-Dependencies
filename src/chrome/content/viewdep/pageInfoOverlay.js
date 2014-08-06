@@ -39,12 +39,31 @@
  * ***** END LICENSE BLOCK ***** */
 
 (function(scope){
+const Cu = Components.utils;
+Cu.import("resource://gre/modules/Services.jsm");
+
 var aserv=Components.classes["@mozilla.org/atom-service;1"]
                     .getService(Components.interfaces.nsIAtomService);
 var gIOService = Components.classes["@mozilla.org/network/io-service;1"]
                       .getService(Components.interfaces.nsIIOService);
-var gCacheService = Components.classes["@mozilla.org/network/cache-service;1"]
-                      .getService(Components.interfaces.nsICacheService);
+
+// for firefox 32+, cache2
+if ("@mozilla.org/netwerk/cache-storage-service;1" in Components.classes) {
+  Cu.import("resource://gre/modules/LoadContextInfo.jsm");
+
+  const nsICacheStorageService = Components.interfaces.nsICacheStorageService;
+  const nsICacheStorage = Components.interfaces.nsICacheStorage;
+  const cacheService = Components.classes["@mozilla.org/netwerk/cache-storage-service;1"].getService(nsICacheStorageService);
+
+  var loadContextInfo = LoadContextInfo.fromLoadContext(
+    window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+          .getInterface(Components.interfaces.nsIWebNavigation)
+          .QueryInterface(Components.interfaces.nsILoadContext), false);
+  var diskStorage = cacheService.diskCacheStorage(loadContextInfo, false);
+} else {
+  var gCacheService = Components.classes["@mozilla.org/network/cache-service;1"]
+                        .getService(Components.interfaces.nsICacheService);
+}
 
 var viewdepBundle;
 var gFrameTreeNumber = 0;
@@ -1082,6 +1101,7 @@ function goThroughCSSStyleSheet(css)
   }
 }
 
+
 function AddTogList(url, FileType, aBaseURI)
 {
   try {
@@ -1093,7 +1113,8 @@ function AddTogList(url, FileType, aBaseURI)
     } else {
       URI = gIOService.newURI(url, null, null);
     }
-    GetCache(URI.spec, function(cache) {
+
+    GetCache(URI, function(cache) {
       if (cache) {
         var redir = (/^Location:\s*(.*?)\s*(?:\;|$)/mi
                     .exec(cache.getMetaDataElement("response-head")));
@@ -1218,27 +1239,62 @@ function unCacheRefresh(row)
     //... .Invalidate();
 }
 
-function GetCache(url, callback) {
-  const ACCESS_READ = Components.interfaces.nsICache.ACCESS_READ;
-  try {
-    var httpCacheSession = gCacheService.createSession("HTTP", Components.interfaces.nsICache.STORE_ANYWHERE, true);
-    httpCacheSession.asyncOpenCacheEntry(url, ACCESS_READ, {
-      onCacheEntryAvailable: function(entry, access, status) {
-        if (entry)
-          callback(entry);
-        else {
-          var ftpCacheSession = gCacheService.createSession("FTP", Components.interfaces.nsICache.STORE_ANYWHERE, true);
-          ftpCacheSession.asyncOpenCacheEntry(url, ACCESS_READ, {
-            onCacheEntryAvailable: function(entry, access, status) {
-              callback(entry);
-            }
-          }, true);
-        }
-      }
-    }, true);
-  } catch (ex) {
-    // console.log(ex);
+function GetCache(uriOrUrl, callback) {
+  var uri, url;
+  if (typeof uriOrUrl == 'string') {
+    url = uriOrUrl;
+    uri = Services.io.newURI(url, null, null);
+  } else {
+    uri = uriOrUrl;
+    url = uriOrUrl.spec;
+  }
+
+  if (uri.scheme === 'file') {
+    var file = uri.QueryInterface(Components.interfaces.nsIFileURL).file;
+    var entry = {
+      dataSize: file.fileSize,
+      getMetaDataElement: function() {},
+      doom: function() {}
+    };
+    callback(entry);
+    return;
+  } else if (uri.scheme === 'chrome') {
     callback(null);
+    return;
+  }
+
+  if (diskStorage) {  // ff32+
+    var checkCacheListener = {
+      onCacheEntryCheck: function(entry, appCache) {
+        return Components.interfaces.nsICacheEntryOpenCallback.ENTRY_WANTED;
+      },
+      onCacheEntryAvailable: function(entry, isNew, appCache, status) {
+        callback(entry);
+      }
+    };
+    diskStorage.asyncOpenURI(uri, "", nsICacheStorage.OPEN_READONLY, checkCacheListener);
+  } else {
+    const ACCESS_READ = Components.interfaces.nsICache.ACCESS_READ;
+    try {
+      var httpCacheSession = gCacheService.createSession("HTTP", Components.interfaces.nsICache.STORE_ANYWHERE, true);
+      httpCacheSession.asyncOpenCacheEntry(url, ACCESS_READ, {
+        onCacheEntryAvailable: function(entry, access, status) {
+          if (entry)
+            callback(entry);
+          else {
+            var ftpCacheSession = gCacheService.createSession("FTP", Components.interfaces.nsICache.STORE_ANYWHERE, true);
+            ftpCacheSession.asyncOpenCacheEntry(url, ACCESS_READ, {
+              onCacheEntryAvailable: function(entry, access, status) {
+                callback(entry);
+              }
+            }, true);
+          }
+        }
+      }, true);
+    } catch (ex) {
+      // console.log(ex);
+      callback(null);
+    }
   }
 }
 
